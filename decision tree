@@ -1,0 +1,76 @@
+import numpy as np from collections import Counter
+class Node: def init(self, feature=None, threshold=None, left=None, right=None, value=None): self.feature = feature self.threshold = threshold self.left = left self.right = right self.value = value
+def gini_impurity(y): classes, counts = np.unique(y, return_counts=True) probabilities = counts / counts.sum() return 1 - np.sum(probabilities ** 2)
+def best_split(X, y): m, n = X.shape if m <= 1: return None, None
+best_gini = float('inf')
+best_feature, best_threshold = None, None
+
+for feature in range(n):
+    unique_values = np.unique(X[:, feature])
+    if len(unique_values) <= 10:  # Treat as categorical if few unique values
+        for value in unique_values:
+            left_indices = X[:, feature] == value
+            right_indices = ~left_indices
+            
+            if not np.any(left_indices) or not np.any(right_indices):
+                continue
+            
+            left_gini = gini_impurity(y[left_indices])
+            right_gini = gini_impurity(y[right_indices])
+            
+            weighted_gini = (left_gini * np.sum(left_indices) + right_gini * np.sum(right_indices)) / m
+            
+            if weighted_gini < best_gini:
+                best_gini = weighted_gini
+                best_feature = feature
+                best_threshold = value
+    else:
+        for threshold in unique_values:
+            left_indices = X[:, feature] < threshold
+            right_indices = ~left_indices
+            
+            if not np.any(left_indices) or not np.any(right_indices):
+                continue
+            
+            left_gini = gini_impurity(y[left_indices])
+            right_gini = gini_impurity(y[right_indices])
+            
+            weighted_gini = (left_gini * np.sum(left_indices) + right_gini * np.sum(right_indices)) / m
+            
+            if weighted_gini < best_gini:
+                best_gini = weighted_gini
+                best_feature = feature
+                best_threshold = threshold
+
+return best_feature, best_threshold
+
+def build_tree(X, y, depth=0, max_depth=5): if len(set(y)) == 1 or depth == max_depth: return Node(value=Counter(y).most_common(1)[0][0])
+feature, threshold = best_split(X, y)
+if feature is None:
+    return Node(value=Counter(y).most_common(1)[0][0])
+
+left_indices = X[:, feature] == threshold if isinstance(threshold, (int, str)) else X[:, feature] < threshold
+right_indices = ~left_indices
+
+left_subtree = build_tree(X[left_indices], y[left_indices], depth + 1, max_depth)
+right_subtree = build_tree(X[right_indices], y[right_indices], depth + 1, max_depth)
+
+return Node(feature, threshold, left_subtree, right_subtree)
+
+def predict_sample(node, sample): if node.value is not None: return node.value
+if isinstance(node.threshold, (int, str)):
+    if sample[node.feature] == node.threshold:
+        return predict_sample(node.left, sample)
+    else:
+        return predict_sample(node.right, sample)
+else:
+    if sample[node.feature] < node.threshold:
+        return predict_sample(node.left, sample)
+    else:
+        return predict_sample(node.right, sample)
+
+def predict(tree, X): return np.array([predict_sample(tree, sample) for sample in X])
+Example usage
+X = np.array([[2.5, 1], [3.0, 2], [3.5, 1], [4.0, 2], [5.0, 1]]) y = np.array([0, 1, 0, 1, 0])
+tree = build_tree(X, y, max_depth=3) y_pred = predict(tree, X) print("Predictions:", y_pred)
+
